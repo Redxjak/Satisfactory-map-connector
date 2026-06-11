@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: satisfactory-map-connector-api
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: FRONTEND_ORIGIN
+        value: https://redxjak.github.io
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: CREDENTIAL_ENCRYPTION_KEY
+        sync: false
+      - key: SAVE_BUCKET
+        value: saves
+      - key: SIGNED_URL_TTL_SECONDS
+        value: 1800
+      - key: REFRESH_INTERVAL_MINUTES
+        value: 30
+
+  - type: cron
+    name: satisfactory-map-connector-refresh
+    env: node
+    schedule: "*/30 * * * *"
+    buildCommand: npm install
+    startCommand: npm run cron
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SECRET_KEY
+        sync: false
+      - key: CREDENTIAL_ENCRYPTION_KEY
+        sync: false
+      - key: SAVE_BUCKET
+        value: saves
+      - key: SIGNED_URL_TTL_SECONDS
+        value: 1800
+      - key: REFRESH_INTERVAL_MINUTES
+        value: 30
