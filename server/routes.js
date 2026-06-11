@@ -1,5 +1,5 @@
 import express from 'express';
-import { requireUser } from './auth.js';
+import { createCodeSession, deleteCurrentSession, requireUser } from './auth.js';
 import {
   createConnection,
   createScimLink,
@@ -8,7 +8,7 @@ import {
   pullConnection,
   updateConnection,
 } from './save-service.js';
-import { connectionSchema, parseBody, updateConnectionSchema } from './validation.js';
+import { connectionSchema, loginSchema, parseBody, updateConnectionSchema } from './validation.js';
 
 export function createRouter(config) {
   const router = express.Router();
@@ -16,6 +16,24 @@ export function createRouter(config) {
   router.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'satisfactory-map-connector-api' });
   });
+
+  router.post('/auth/login', async (req, res, next) => {
+    try {
+      const input = parseBody(loginSchema, req.body);
+      const session = await createCodeSession(req.app.locals.supabase, config, input.code);
+      res.status(201).json(session);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post(
+    '/auth/logout',
+    requireUser(async (req, res) => {
+      await deleteCurrentSession(req, req.app.locals.supabase);
+      res.status(204).end();
+    }),
+  );
 
   router.get(
     '/me',

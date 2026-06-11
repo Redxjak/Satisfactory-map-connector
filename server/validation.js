@@ -16,6 +16,10 @@ export const updateConnectionSchema = connectionSchema.partial().refine(
   'At least one field is required',
 );
 
+export const loginSchema = z.object({
+  code: z.string().trim().min(1).max(255),
+});
+
 export function parseBody(schema, body) {
   const result = schema.safeParse(body);
   if (!result.success) {

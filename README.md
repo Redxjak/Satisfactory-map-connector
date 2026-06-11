@@ -11,7 +11,7 @@ https://redxjak.github.io/Satisfactory-map-connector
 
 ## What It Does
 
-- Lets approved users sign in with Supabase Auth.
+- Lets approved users sign in with access codes controlled by the site owner.
 - Stores each user's SFTP connection settings.
 - Encrypts SFTP passwords on the backend before storing them.
 - Pulls the newest `.sav` from the configured save folder.
@@ -23,9 +23,8 @@ https://redxjak.github.io/Satisfactory-map-connector
 
 - `web/` is the static GitHub Pages frontend.
 - `server/` is the Render Node/Express API.
-- `supabase/migrations/001_initial_schema.sql` creates the invite list,
-  connection tables, save snapshot table, RLS policies, and private `saves`
-  bucket.
+- `supabase/migrations/` creates the connection tables, save snapshot table,
+  access-code session tables, RLS policies, and private `saves` bucket.
 - `render.yaml` defines the Render web service and cron job.
 - `.github/workflows/deploy-pages.yml` builds and deploys the frontend to
   GitHub Pages.
@@ -59,10 +58,7 @@ CREDENTIAL_ENCRYPTION_KEY=...
 Fill in:
 
 ```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_API_BASE_URL=http://localhost:8787
-VITE_SITE_URL=https://redxjak.github.io/Satisfactory-map-connector/
 SUPABASE_URL=
 SUPABASE_SECRET_KEY=
 ```
@@ -82,18 +78,21 @@ npm run dev:web
 ## Supabase Setup
 
 1. Create a Supabase project.
-2. Run `supabase/migrations/001_initial_schema.sql` in SQL Editor.
-3. Add invited users:
+2. Run the SQL files in `supabase/migrations/` in order.
+3. Create one access code per approved person. First hash the code locally:
 
-   ```sql
-   insert into public.allowed_users (email)
-   values ('your-email@example.com')
-   on conflict (email) do nothing;
+   ```powershell
+   node scripts/hash-access-code.js "a-long-private-code"
    ```
 
-4. Enable email sign-in in Supabase Auth.
-5. Copy the project URL, publishable key, and secret key into local/Render
-   environment variables.
+4. Insert that hash into Supabase:
+
+   ```sql
+   insert into public.access_codes (label, code_hash)
+   values ('Derrick', 'paste-the-hash-here');
+   ```
+
+5. Copy the project URL and secret key into local/Render environment variables.
 
 ## Render Setup
 
@@ -111,6 +110,7 @@ CREDENTIAL_ENCRYPTION_KEY=
 SAVE_BUCKET=saves
 SIGNED_URL_TTL_SECONDS=1800
 REFRESH_INTERVAL_MINUTES=30
+SESSION_TTL_HOURS=720
 ```
 
 Set this on the web service:
@@ -132,10 +132,7 @@ Satisfactory-map-connector
 Add repository secrets:
 
 ```env
-VITE_SUPABASE_URL=
-VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_API_BASE_URL=https://your-render-service.onrender.com
-VITE_SITE_URL=https://redxjak.github.io/Satisfactory-map-connector/
 ```
 
 Enable GitHub Pages from GitHub Actions.
@@ -161,6 +158,9 @@ The connector chooses the newest `.sav` by modified time.
 - SFTP credentials are never sent to the frontend after creation.
 - The backend stores encrypted SFTP credentials in `credentials_encrypted`.
 - The encryption key must live only in Render environment variables.
+- Access codes are stored only as SHA-256 hashes in Supabase.
+- Use one access code per person so you can disable a single code if it is
+  shared.
 - Supabase Storage bucket `saves` is private.
 - Generated SCIM links use temporary signed save URLs.
 - Anyone with a valid temporary SCIM URL can load that save until it expires.

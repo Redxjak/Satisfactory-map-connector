@@ -30,7 +30,7 @@ export async function listConnections(supabase, user) {
   const { data, error } = await supabase
     .from('server_connections')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('owner_key', user.id)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data.map(publicConnection);
@@ -40,7 +40,7 @@ export async function getConnection(supabase, user, id) {
   const { data, error } = await supabase
     .from('server_connections')
     .select('*')
-    .eq('user_id', user.id)
+    .eq('owner_key', user.id)
     .eq('id', id)
     .maybeSingle();
   if (error) throw error;
@@ -58,7 +58,7 @@ export async function createConnection(supabase, config, user, input) {
   const { data, error } = await supabase
     .from('server_connections')
     .insert({
-      user_id: user.id,
+      owner_key: user.id,
       name: input.name,
       host: input.host,
       port: input.port,
@@ -89,7 +89,7 @@ export async function updateConnection(supabase, config, user, id, input) {
   const { data, error } = await supabase
     .from('server_connections')
     .update(patch)
-    .eq('user_id', user.id)
+    .eq('owner_key', user.id)
     .eq('id', id)
     .select('*')
     .maybeSingle();
@@ -102,7 +102,7 @@ export async function deleteConnection(supabase, user, id) {
   const { error } = await supabase
     .from('server_connections')
     .delete()
-    .eq('user_id', user.id)
+    .eq('owner_key', user.id)
     .eq('id', id);
   if (error) throw error;
   return { ok: true };
@@ -127,7 +127,8 @@ export async function pullConnectionRow(supabase, config, row) {
     });
 
     const file = await fs.readFile(save.localPath);
-    const objectPath = storagePath(row.user_id, row.id);
+    const ownerKey = row.owner_key || row.user_id;
+    const objectPath = storagePath(ownerKey, row.id);
     const upload = await supabase.storage.from(config.saveBucket).upload(objectPath, file, {
       contentType: 'application/octet-stream',
       cacheControl: '60',
@@ -136,7 +137,7 @@ export async function pullConnectionRow(supabase, config, row) {
     if (upload.error) throw upload.error;
 
     const snapshot = {
-      user_id: row.user_id,
+      owner_key: ownerKey,
       connection_id: row.id,
       save_name: save.name,
       save_bytes: save.bytes,

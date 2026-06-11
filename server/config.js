@@ -44,6 +44,7 @@ export function createConfig() {
     saveBucket: optional('SAVE_BUCKET', 'saves'),
     signedUrlTtlSeconds: Number(optional('SIGNED_URL_TTL_SECONDS', '1800')),
     refreshIntervalMinutes: Number(optional('REFRESH_INTERVAL_MINUTES', '30')),
+    sessionTtlHours: Number(optional('SESSION_TTL_HOURS', '720')),
   };
 }
 

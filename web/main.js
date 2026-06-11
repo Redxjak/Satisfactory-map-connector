@@ -1,28 +1,23 @@
-import { createClient } from '@supabase/supabase-js';
 import './styles.css';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://redxjak.github.io/Satisfactory-map-connector/';
+const TOKEN_KEY = 'satisfactory-map-connector-token';
 
 const app = document.querySelector('#app');
 
-if (!SUPABASE_URL || !SUPABASE_KEY || !API_BASE_URL) {
+if (!API_BASE_URL) {
   app.innerHTML = `
     <main class="center">
       <section class="panel compact">
         <h1>Configuration Missing</h1>
-        <p>Set VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY, and VITE_API_BASE_URL.</p>
+        <p>Set VITE_API_BASE_URL.</p>
       </section>
     </main>
   `;
   throw new Error('Missing frontend configuration');
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-
-let session = null;
+let authToken = window.localStorage.getItem(TOKEN_KEY);
 let user = null;
 let connections = [];
 let selectedId = null;
@@ -30,13 +25,13 @@ let busy = false;
 let notice = '';
 
 async function api(path, options = {}) {
-  if (!session?.access_token) throw new Error('You are not signed in');
+  if (!authToken) throw new Error('You are not signed in');
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${session.access_token}`,
+      Authorization: `Bearer ${authToken}`,
       ...(options.headers || {}),
     },
   });
@@ -94,28 +89,41 @@ async function loadState() {
   });
 }
 
-async function signIn(event) {
+async function login(event) {
   event.preventDefault();
-  const email = new FormData(event.currentTarget).get('email').trim();
+  const code = new FormData(event.currentTarget).get('code').trim();
   busy = true;
   render();
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: {
-      emailRedirectTo: SITE_URL,
-    },
-  });
-  busy = false;
-  notice = error ? error.message : 'Check your email for the sign-in link.';
-  render();
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || 'Access code was not accepted');
+    authToken = body.token;
+    user = body.user;
+    window.localStorage.setItem(TOKEN_KEY, authToken);
+    notice = '';
+    await loadState();
+  } catch (error) {
+    notice = error.message;
+  } finally {
+    busy = false;
+    render();
+  }
 }
 
 async function signOut() {
-  await supabase.auth.signOut();
-  session = null;
+  if (authToken) {
+    await api('/auth/logout', { method: 'POST' }).catch(() => {});
+  }
+  authToken = null;
   user = null;
   connections = [];
   selectedId = null;
+  window.localStorage.removeItem(TOKEN_KEY);
   render();
 }
 
@@ -193,13 +201,13 @@ function loginView() {
       <section class="panel compact">
         <div class="eyebrow">Satisfactory Map Connector</div>
         <h1>Open the latest server save in SCIM.</h1>
-        <p>Sign in with an approved email to manage SFTP save sources and generate temporary calculator links.</p>
-        <form id="signin-form" class="stack">
+        <p>Enter an approved access code to manage SFTP save sources and generate temporary calculator links.</p>
+        <form id="login-form" class="stack">
           <label>
-            Email
-            <input name="email" type="email" autocomplete="email" required />
+            Access Code
+            <input name="code" type="password" autocomplete="current-password" required />
           </label>
-          <button type="submit" ${busy ? 'disabled' : ''}>Send Sign-In Link</button>
+          <button type="submit" ${busy ? 'disabled' : ''}>Sign In</button>
         </form>
         ${notice ? `<p class="notice">${notice}</p>` : ''}
       </section>
@@ -271,7 +279,7 @@ function dashboardView() {
           <h1>Map Connector</h1>
         </div>
         <div class="user">
-          <span>${user?.email || ''}</span>
+          <span>${user?.label || 'Approved user'}</span>
           <button id="signout-button" class="ghost">Sign Out</button>
         </div>
         <div class="connections">
@@ -321,9 +329,9 @@ function dashboardView() {
 }
 
 function render() {
-  app.innerHTML = session ? dashboardView() : loginView();
+  app.innerHTML = authToken ? dashboardView() : loginView();
 
-  document.querySelector('#signin-form')?.addEventListener('submit', signIn);
+  document.querySelector('#login-form')?.addEventListener('submit', login);
   document.querySelector('#signout-button')?.addEventListener('click', signOut);
   document.querySelector('#connection-form')?.addEventListener('submit', saveConnection);
   document.querySelector('#delete-button')?.addEventListener('click', deleteSelected);
@@ -343,16 +351,15 @@ function render() {
 }
 
 async function boot() {
-  const response = await supabase.auth.getSession();
-  session = response.data.session;
   render();
-  if (session) await loadState();
-
-  supabase.auth.onAuthStateChange((_event, nextSession) => {
-    session = nextSession;
-    if (session) loadState();
-    else render();
-  });
+  if (authToken) {
+    await loadState();
+    if (!user) {
+      authToken = null;
+      window.localStorage.removeItem(TOKEN_KEY);
+      render();
+    }
+  }
 }
 
 boot();
