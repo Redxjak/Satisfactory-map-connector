@@ -4,6 +4,7 @@ import './styles.css';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const SITE_URL = import.meta.env.VITE_SITE_URL || 'https://redxjak.github.io/Satisfactory-map-connector/';
 
 const app = document.querySelector('#app');
 
@@ -101,7 +102,7 @@ async function signIn(event) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: window.location.href,
+      emailRedirectTo: SITE_URL,
     },
   });
   busy = false;

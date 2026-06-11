@@ -62,6 +62,7 @@ Fill in:
 VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_API_BASE_URL=http://localhost:8787
+VITE_SITE_URL=https://redxjak.github.io/Satisfactory-map-connector/
 SUPABASE_URL=
 SUPABASE_SECRET_KEY=
 ```
@@ -134,6 +135,7 @@ Add repository secrets:
 VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_API_BASE_URL=https://your-render-service.onrender.com
+VITE_SITE_URL=https://redxjak.github.io/Satisfactory-map-connector/
 ```
 
 Enable GitHub Pages from GitHub Actions.
