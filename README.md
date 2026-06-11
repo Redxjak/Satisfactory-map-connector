@@ -96,9 +96,12 @@ npm run dev:web
 
 ## Render Setup
 
-Create a Render Blueprint from `render.yaml` or create the services manually.
+Create a Render Blueprint from `render.yaml` or create the service manually. The
+Blueprint uses Render's free web service tier. Add a paid Render cron job later
+if you want true every-30-minute background refreshes while nobody is visiting
+the site.
 
-Set these secrets on both the web service and cron job:
+Set these secrets on the web service:
 
 ```env
 SUPABASE_URL=
