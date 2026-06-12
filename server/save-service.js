@@ -26,6 +26,31 @@ function storagePath(userId, connectionId) {
   return `${userId}/${connectionId}/latest.sav`;
 }
 
+function normalizeConnectionInput(input) {
+  const normalized = { ...input };
+  const rawHost = normalized.host;
+  if (!rawHost) return normalized;
+
+  try {
+    const url = rawHost.includes('://') ? new URL(rawHost) : null;
+    if (url?.hostname) {
+      normalized.host = url.hostname;
+      if (url.port) normalized.port = Number(url.port);
+      return normalized;
+    }
+  } catch {
+    // Fall through to simple host:port handling.
+  }
+
+  const hostPort = rawHost.match(/^([^:/\s]+):(\d{1,5})$/);
+  if (hostPort) {
+    normalized.host = hostPort[1];
+    normalized.port = Number(hostPort[2]);
+  }
+
+  return normalized;
+}
+
 export async function listConnections(supabase, user) {
   const { data, error } = await supabase
     .from('server_connections')
@@ -48,9 +73,10 @@ export async function getConnection(supabase, user, id) {
 }
 
 export async function createConnection(supabase, config, user, input) {
+  const normalizedInput = normalizeConnectionInput(input);
   const credentialsEncrypted = encryptJson(
     {
-      password: input.password,
+      password: normalizedInput.password,
     },
     config.encryptionKey,
   );
@@ -59,12 +85,12 @@ export async function createConnection(supabase, config, user, input) {
     .from('server_connections')
     .insert({
       owner_key: user.id,
-      name: input.name,
-      host: input.host,
-      port: input.port,
-      username: input.username,
-      remote_dir: input.remoteDir,
-      active: input.active,
+      name: normalizedInput.name,
+      host: normalizedInput.host,
+      port: normalizedInput.port,
+      username: normalizedInput.username,
+      remote_dir: normalizedInput.remoteDir,
+      active: normalizedInput.active,
       credentials_encrypted: credentialsEncrypted,
     })
     .select('*')
@@ -75,15 +101,19 @@ export async function createConnection(supabase, config, user, input) {
 }
 
 export async function updateConnection(supabase, config, user, id, input) {
+  const normalizedInput = normalizeConnectionInput(input);
   const patch = {};
-  if (input.name !== undefined) patch.name = input.name;
-  if (input.host !== undefined) patch.host = input.host;
-  if (input.port !== undefined) patch.port = input.port;
-  if (input.username !== undefined) patch.username = input.username;
-  if (input.remoteDir !== undefined) patch.remote_dir = input.remoteDir;
-  if (input.active !== undefined) patch.active = input.active;
-  if (input.password !== undefined) {
-    patch.credentials_encrypted = encryptJson({ password: input.password }, config.encryptionKey);
+  if (normalizedInput.name !== undefined) patch.name = normalizedInput.name;
+  if (normalizedInput.host !== undefined) patch.host = normalizedInput.host;
+  if (normalizedInput.port !== undefined) patch.port = normalizedInput.port;
+  if (normalizedInput.username !== undefined) patch.username = normalizedInput.username;
+  if (normalizedInput.remoteDir !== undefined) patch.remote_dir = normalizedInput.remoteDir;
+  if (normalizedInput.active !== undefined) patch.active = normalizedInput.active;
+  if (normalizedInput.password !== undefined) {
+    patch.credentials_encrypted = encryptJson(
+      { password: normalizedInput.password },
+      config.encryptionKey,
+    );
   }
 
   const { data, error } = await supabase
