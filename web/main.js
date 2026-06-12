@@ -62,7 +62,7 @@ function currentConnection() {
 
 function displayUserName() {
   if (user?.role === 'owner') return user.label || user.email || 'Owner';
-  return 'Player';
+  return user?.label || 'Player';
 }
 
 function setNotice(message) {
