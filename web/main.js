@@ -60,6 +60,11 @@ function currentConnection() {
   return connections.find((connection) => connection.id === selectedId) || connections[0] || null;
 }
 
+function displayUserName() {
+  if (user?.role === 'owner') return user.label || user.email || 'Owner';
+  return 'Player';
+}
+
 function setNotice(message) {
   notice = message;
   render();
@@ -321,7 +326,7 @@ function loginView() {
             </label>
             <label>
               Existing Player Code
-              <input name="claimCode" autocomplete="off" placeholder="Optional, like 753951" />
+              <input name="claimCode" autocomplete="off" placeholder="Optional" />
             </label>
             <button type="submit" ${busy ? 'disabled' : ''}>Create Account</button>
           </form>
@@ -444,7 +449,7 @@ function dashboardView() {
           <h1>Map Connector</h1>
         </div>
         <div class="user">
-          <span>${user?.label || 'Approved user'}</span>
+          <span>${displayUserName()}</span>
           <small>${isOwner ? 'Owner' : 'Player'}</small>
           <button id="signout-button" class="ghost">Sign Out</button>
         </div>
