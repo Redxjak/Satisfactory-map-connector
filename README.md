@@ -11,7 +11,8 @@ https://redxjak.github.io/Satisfactory-map-connector
 
 ## What It Does
 
-- Lets approved users sign in with access codes controlled by the site owner.
+- Lets server owners create accounts and manage SFTP connections.
+- Lets owners generate player access codes for map-only access.
 - Stores each user's SFTP connection settings.
 - Encrypts SFTP passwords on the backend before storing them.
 - Pulls the newest `.sav` from the configured save folder.
@@ -23,8 +24,9 @@ https://redxjak.github.io/Satisfactory-map-connector
 
 - `web/` is the static GitHub Pages frontend.
 - `server/` is the Render Node/Express API.
-- `supabase/migrations/` creates the connection tables, save snapshot table,
-  access-code session tables, RLS policies, and private `saves` bucket.
+- `supabase/migrations/` creates owner accounts, connection tables, save
+  snapshot tables, access-code session tables, RLS policies, and private
+  `saves` bucket.
 - `render.yaml` defines the Render web service and cron job.
 - `.github/workflows/deploy-pages.yml` builds and deploys the frontend to
   GitHub Pages.
@@ -79,7 +81,8 @@ npm run dev:web
 
 1. Create a Supabase project.
 2. Run the SQL files in `supabase/migrations/` in order.
-3. Create one access code per approved person. First hash the code locally:
+3. Owners can create accounts from the website. For a manually seeded owner
+   code, first hash the code locally:
 
    ```powershell
    node scripts/hash-access-code.js "a-long-private-code"
@@ -156,6 +159,7 @@ The connector chooses the newest `.sav` by modified time.
 ## Security Notes
 
 - SFTP credentials are never sent to the frontend after creation.
+- Player accounts do not edit SFTP settings and do not receive SFTP passwords.
 - The backend stores encrypted SFTP credentials in `credentials_encrypted`.
 - The encryption key must live only in Render environment variables.
 - Access codes are stored only as SHA-256 hashes in Supabase.

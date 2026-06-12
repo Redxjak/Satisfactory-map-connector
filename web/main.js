@@ -20,9 +20,11 @@ if (!API_BASE_URL) {
 let authToken = window.localStorage.getItem(TOKEN_KEY);
 let user = null;
 let connections = [];
+let accessCodes = [];
 let selectedId = null;
 let busy = false;
 let notice = '';
+let authMode = 'code';
 
 async function api(path, options = {}) {
   if (!authToken) throw new Error('You are not signed in');
@@ -85,23 +87,27 @@ async function loadState() {
     user = me.user;
     const response = await api('/connections');
     connections = response.connections;
+    if (user.role === 'owner') {
+      const codeResponse = await api('/access-codes');
+      accessCodes = codeResponse.accessCodes;
+    } else {
+      accessCodes = [];
+    }
     if (!selectedId && connections.length) selectedId = connections[0].id;
   });
 }
 
-async function login(event) {
-  event.preventDefault();
-  const code = new FormData(event.currentTarget).get('code').trim();
+async function authenticate(path, payload) {
   busy = true;
   render();
   try {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code }),
+      body: JSON.stringify(payload),
     });
     const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || 'Access code was not accepted');
+    if (!response.ok) throw new Error(body.error || 'Sign-in failed');
     authToken = body.token;
     user = body.user;
     window.localStorage.setItem(TOKEN_KEY, authToken);
@@ -115,6 +121,32 @@ async function login(event) {
   }
 }
 
+async function login(event) {
+  event.preventDefault();
+  const code = new FormData(event.currentTarget).get('code').trim();
+  await authenticate('/auth/login', { code });
+}
+
+async function ownerLogin(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  await authenticate('/auth/account-login', {
+    email: formData.get('email').trim(),
+    password: formData.get('password'),
+  });
+}
+
+async function ownerSignup(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  await authenticate('/auth/signup', {
+    displayName: formData.get('displayName').trim(),
+    email: formData.get('email').trim(),
+    password: formData.get('password'),
+    claimCode: formData.get('claimCode').trim(),
+  });
+}
+
 async function signOut() {
   if (authToken) {
     await api('/auth/logout', { method: 'POST' }).catch(() => {});
@@ -122,9 +154,50 @@ async function signOut() {
   authToken = null;
   user = null;
   connections = [];
+  accessCodes = [];
   selectedId = null;
   window.localStorage.removeItem(TOKEN_KEY);
   render();
+}
+
+async function createAccessCode(event) {
+  event.preventDefault();
+  const formData = new FormData(event.currentTarget);
+  const payload = {
+    label: formData.get('label').trim(),
+  };
+  const customCode = formData.get('code').trim();
+  if (customCode) payload.code = customCode;
+
+  await withBusy(async () => {
+    const response = await api('/access-codes', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    const codeResponse = await api('/access-codes');
+    accessCodes = codeResponse.accessCodes;
+    setNotice(`Player code created: ${response.code}`);
+  });
+}
+
+async function toggleAccessCode(id, active) {
+  await withBusy(async () => {
+    await api(`/access-codes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ active }),
+    });
+    const response = await api('/access-codes');
+    accessCodes = response.accessCodes;
+  }, active ? 'Player code enabled.' : 'Player code disabled.');
+}
+
+async function deleteAccessCode(id) {
+  if (!window.confirm('Delete this player code?')) return;
+  await withBusy(async () => {
+    await api(`/access-codes/${id}`, { method: 'DELETE' });
+    const response = await api('/access-codes');
+    accessCodes = response.accessCodes;
+  }, 'Player code deleted.');
 }
 
 async function saveConnection(event) {
@@ -196,19 +269,63 @@ async function makeScimLink(openImmediately = false) {
 }
 
 function loginView() {
+  const modeButton = (mode, label) =>
+    `<button type="button" class="tab ${authMode === mode ? 'active' : ''}" data-auth-mode="${mode}">${label}</button>`;
+
   return `
     <main class="center hero">
       <section class="panel compact">
         <div class="eyebrow">Satisfactory Map Connector</div>
         <h1>Open the latest server save in SCIM.</h1>
-        <p>Enter an approved access code to manage SFTP save sources and generate temporary calculator links.</p>
-        <form id="login-form" class="stack">
-          <label>
-            Access Code
-            <input name="code" type="password" autocomplete="current-password" required />
-          </label>
-          <button type="submit" ${busy ? 'disabled' : ''}>Sign In</button>
-        </form>
+        <p>Owners manage SFTP connections. Players use access codes to open the latest map.</p>
+        <div class="tabs">
+          ${modeButton('code', 'Player Code')}
+          ${modeButton('owner-login', 'Owner Sign In')}
+          ${modeButton('owner-signup', 'Create Owner')}
+        </div>
+        ${authMode === 'code' ? `
+          <form id="login-form" class="stack">
+            <label>
+              Access Code
+              <input name="code" type="password" autocomplete="current-password" required />
+            </label>
+            <button type="submit" ${busy ? 'disabled' : ''}>Sign In</button>
+          </form>
+        ` : ''}
+        ${authMode === 'owner-login' ? `
+          <form id="owner-login-form" class="stack">
+            <label>
+              Email
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Password
+              <input name="password" type="password" autocomplete="current-password" required />
+            </label>
+            <button type="submit" ${busy ? 'disabled' : ''}>Sign In</button>
+          </form>
+        ` : ''}
+        ${authMode === 'owner-signup' ? `
+          <form id="owner-signup-form" class="stack">
+            <label>
+              Name
+              <input name="displayName" autocomplete="name" required />
+            </label>
+            <label>
+              Email
+              <input name="email" type="email" autocomplete="email" required />
+            </label>
+            <label>
+              Password
+              <input name="password" type="password" autocomplete="new-password" minlength="8" required />
+            </label>
+            <label>
+              Existing Player Code
+              <input name="claimCode" autocomplete="off" placeholder="Optional, like 753951" />
+            </label>
+            <button type="submit" ${busy ? 'disabled' : ''}>Create Account</button>
+          </form>
+        ` : ''}
         ${notice ? `<p class="notice">${notice}</p>` : ''}
       </section>
     </main>
@@ -269,8 +386,56 @@ function connectionForm(connection) {
   `;
 }
 
+function accessCodePanel() {
+  if (user?.role !== 'owner') return '';
+
+  const rows = accessCodes.length
+    ? accessCodes
+      .map(
+        (code) => `
+          <div class="code-row">
+            <div>
+              <strong>${code.label}</strong>
+              <small>${code.active ? 'Active' : 'Disabled'} · Created ${formatDate(code.createdAt)}</small>
+            </div>
+            <div class="actions">
+              <button type="button" class="secondary toggle-code" data-id="${code.id}" data-active="${!code.active}">
+                ${code.active ? 'Disable' : 'Enable'}
+              </button>
+              <button type="button" class="danger delete-code" data-id="${code.id}">Delete</button>
+            </div>
+          </div>
+        `,
+      )
+      .join('')
+    : '<p class="empty">No player codes yet.</p>';
+
+  return `
+    <section class="panel">
+      <h3>Player Access Codes</h3>
+      <form id="access-code-form" class="form-grid code-form">
+        <label>
+          Player Name
+          <input name="label" required placeholder="Alex" />
+        </label>
+        <label>
+          Custom Code
+          <input name="code" placeholder="Leave blank to generate" />
+        </label>
+        <div class="actions wide">
+          <button type="submit" ${busy ? 'disabled' : ''}>Generate Player Code</button>
+        </div>
+      </form>
+      <div class="code-list">
+        ${rows}
+      </div>
+    </section>
+  `;
+}
+
 function dashboardView() {
   const connection = currentConnection();
+  const isOwner = user?.role === 'owner';
   return `
     <main class="app-shell">
       <aside class="sidebar">
@@ -280,19 +445,20 @@ function dashboardView() {
         </div>
         <div class="user">
           <span>${user?.label || 'Approved user'}</span>
+          <small>${isOwner ? 'Owner' : 'Player'}</small>
           <button id="signout-button" class="ghost">Sign Out</button>
         </div>
         <div class="connections">
           ${connectionList()}
         </div>
-        <button id="new-button" class="secondary">New Connection</button>
+        ${isOwner ? '<button id="new-button" class="secondary">New Connection</button>' : ''}
       </aside>
 
       <section class="workspace">
         <div class="topline">
           <div>
             <h2>${connection ? connection.name : 'New Connection'}</h2>
-            <p>${connection ? `${connection.host}:${connection.port}` : 'Add a SFTP save source.'}</p>
+            <p>${connection ? (isOwner ? `${connection.host}:${connection.port}` : 'Player map access') : 'Add a SFTP save source.'}</p>
           </div>
           ${
             connection
@@ -319,10 +485,11 @@ function dashboardView() {
             : ''
         }
 
-        <section class="panel">
+        ${isOwner ? `<section class="panel">
           <h3>${connection ? 'Connection Settings' : 'Create Connection'}</h3>
           ${connectionForm(connection)}
-        </section>
+        </section>` : ''}
+        ${accessCodePanel()}
       </section>
     </main>
   `;
@@ -332,8 +499,11 @@ function render() {
   app.innerHTML = authToken ? dashboardView() : loginView();
 
   document.querySelector('#login-form')?.addEventListener('submit', login);
+  document.querySelector('#owner-login-form')?.addEventListener('submit', ownerLogin);
+  document.querySelector('#owner-signup-form')?.addEventListener('submit', ownerSignup);
   document.querySelector('#signout-button')?.addEventListener('click', signOut);
   document.querySelector('#connection-form')?.addEventListener('submit', saveConnection);
+  document.querySelector('#access-code-form')?.addEventListener('submit', createAccessCode);
   document.querySelector('#delete-button')?.addEventListener('click', deleteSelected);
   document.querySelector('#pull-button')?.addEventListener('click', pullSelected);
   document.querySelector('#copy-link-button')?.addEventListener('click', () => makeScimLink(false));
@@ -341,6 +511,21 @@ function render() {
   document.querySelector('#new-button')?.addEventListener('click', () => {
     selectedId = null;
     render();
+  });
+  document.querySelectorAll('[data-auth-mode]').forEach((button) => {
+    button.addEventListener('click', () => {
+      authMode = button.dataset.authMode;
+      notice = '';
+      render();
+    });
+  });
+  document.querySelectorAll('.toggle-code').forEach((button) => {
+    button.addEventListener('click', () => {
+      toggleAccessCode(button.dataset.id, button.dataset.active === 'true');
+    });
+  });
+  document.querySelectorAll('.delete-code').forEach((button) => {
+    button.addEventListener('click', () => deleteAccessCode(button.dataset.id));
   });
   document.querySelectorAll('.connection').forEach((button) => {
     button.addEventListener('click', () => {

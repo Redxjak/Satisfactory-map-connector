@@ -3,14 +3,10 @@ import { decryptJson, encryptJson } from './crypto.js';
 import { HttpError, assertFound } from './http-error.js';
 import { downloadNewestSave } from './sftp.js';
 
-function publicConnection(row) {
-  return {
+function publicConnection(row, user = { role: 'owner' }) {
+  const connection = {
     id: row.id,
     name: row.name,
-    host: row.host,
-    port: row.port,
-    username: row.username,
-    remoteDir: row.remote_dir,
     active: row.active,
     latestSaveName: row.latest_save_name,
     latestSaveBytes: row.latest_save_bytes,
@@ -20,6 +16,15 @@ function publicConnection(row) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+
+  if (user.role === 'owner') {
+    connection.host = row.host;
+    connection.port = row.port;
+    connection.username = row.username;
+    connection.remoteDir = row.remote_dir;
+  }
+
+  return connection;
 }
 
 function storagePath(userId, connectionId) {
@@ -58,7 +63,7 @@ export async function listConnections(supabase, user) {
     .eq('owner_key', user.id)
     .order('created_at', { ascending: false });
   if (error) throw error;
-  return data.map(publicConnection);
+  return data.map((row) => publicConnection(row, user));
 }
 
 export async function getConnection(supabase, user, id) {
@@ -97,7 +102,7 @@ export async function createConnection(supabase, config, user, input) {
     .single();
 
   if (error) throw error;
-  return publicConnection(data);
+  return publicConnection(data, user);
 }
 
 export async function updateConnection(supabase, config, user, id, input) {
@@ -125,7 +130,7 @@ export async function updateConnection(supabase, config, user, id, input) {
     .maybeSingle();
 
   if (error) throw error;
-  return publicConnection(assertFound(data, 'Connection not found'));
+  return publicConnection(assertFound(data, 'Connection not found'), user);
 }
 
 export async function deleteConnection(supabase, user, id) {
@@ -140,7 +145,8 @@ export async function deleteConnection(supabase, user, id) {
 
 export async function pullConnection(supabase, config, user, id) {
   const row = await getConnection(supabase, user, id);
-  return pullConnectionRow(supabase, config, row);
+  const updated = await pullConnectionRow(supabase, config, row);
+  return publicConnection(updated, user);
 }
 
 export async function pullConnectionRow(supabase, config, row) {
@@ -192,7 +198,7 @@ export async function pullConnectionRow(supabase, config, row) {
       .single();
 
     if (error) throw error;
-    return publicConnection(data);
+    return data;
   } catch (error) {
     await supabase
       .from('server_connections')
@@ -238,7 +244,7 @@ export async function refreshActiveConnections(supabase, config) {
   for (const row of data) {
     try {
       const updated = await pullConnectionRow(supabase, config, row);
-      results.push({ id: row.id, ok: true, saveName: updated.latestSaveName });
+      results.push({ id: row.id, ok: true, saveName: updated.latest_save_name });
     } catch (error) {
       results.push({ id: row.id, ok: false, error: error.message });
     }

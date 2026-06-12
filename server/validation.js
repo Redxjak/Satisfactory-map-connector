@@ -20,6 +20,31 @@ export const loginSchema = z.object({
   code: z.string().trim().min(1).max(255),
 });
 
+export const accountSignupSchema = z.object({
+  displayName: z.string().trim().min(1).max(80),
+  email: z.string().trim().email().max(255),
+  password: z.string().min(8).max(255),
+  claimCode: z.string().trim().min(1).max(255).optional().or(z.literal('')),
+});
+
+export const accountLoginSchema = z.object({
+  email: z.string().trim().email().max(255),
+  password: z.string().min(1).max(255),
+});
+
+export const createAccessCodeSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  code: z.string().trim().min(4).max(64).optional(),
+});
+
+export const updateAccessCodeSchema = z.object({
+  label: z.string().trim().min(1).max(80).optional(),
+  active: z.boolean().optional(),
+}).refine(
+  (value) => Object.keys(value).length > 0,
+  'At least one field is required',
+);
+
 export function parseBody(schema, body) {
   const result = schema.safeParse(body);
   if (!result.success) {

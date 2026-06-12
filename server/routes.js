@@ -1,5 +1,18 @@
 import express from 'express';
-import { createCodeSession, deleteCurrentSession, requireUser } from './auth.js';
+import {
+  createCodeSession,
+  createOwnerAccountSession,
+  createOwnerLoginSession,
+  deleteCurrentSession,
+  requireOwner,
+  requireUser,
+} from './auth.js';
+import {
+  createPlayerAccessCode,
+  deletePlayerAccessCode,
+  listPlayerAccessCodes,
+  updatePlayerAccessCode,
+} from './access-codes.js';
 import {
   createConnection,
   createScimLink,
@@ -8,7 +21,16 @@ import {
   pullConnection,
   updateConnection,
 } from './save-service.js';
-import { connectionSchema, loginSchema, parseBody, updateConnectionSchema } from './validation.js';
+import {
+  accountLoginSchema,
+  accountSignupSchema,
+  connectionSchema,
+  createAccessCodeSchema,
+  loginSchema,
+  parseBody,
+  updateAccessCodeSchema,
+  updateConnectionSchema,
+} from './validation.js';
 
 export function createRouter(config) {
   const router = express.Router();
@@ -21,6 +43,26 @@ export function createRouter(config) {
     try {
       const input = parseBody(loginSchema, req.body);
       const session = await createCodeSession(req.app.locals.supabase, config, input.code);
+      res.status(201).json(session);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/auth/signup', async (req, res, next) => {
+    try {
+      const input = parseBody(accountSignupSchema, req.body);
+      const session = await createOwnerAccountSession(req.app.locals.supabase, config, input);
+      res.status(201).json(session);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post('/auth/account-login', async (req, res, next) => {
+    try {
+      const input = parseBody(accountLoginSchema, req.body);
+      const session = await createOwnerLoginSession(req.app.locals.supabase, config, input);
       res.status(201).json(session);
     } catch (error) {
       next(error);
@@ -52,7 +94,7 @@ export function createRouter(config) {
 
   router.post(
     '/connections',
-    requireUser(async (req, res) => {
+    requireOwner(async (req, res) => {
       const input = parseBody(connectionSchema, req.body);
       const connection = await createConnection(
         req.app.locals.supabase,
@@ -66,7 +108,7 @@ export function createRouter(config) {
 
   router.patch(
     '/connections/:id',
-    requireUser(async (req, res) => {
+    requireOwner(async (req, res) => {
       const input = parseBody(updateConnectionSchema, req.body);
       const connection = await updateConnection(
         req.app.locals.supabase,
@@ -81,7 +123,7 @@ export function createRouter(config) {
 
   router.delete(
     '/connections/:id',
-    requireUser(async (req, res) => {
+    requireOwner(async (req, res) => {
       await deleteConnection(req.app.locals.supabase, req.user, req.params.id);
       res.status(204).end();
     }),
@@ -110,6 +152,45 @@ export function createRouter(config) {
         req.params.id,
       );
       res.json({ link });
+    }),
+  );
+
+  router.get(
+    '/access-codes',
+    requireOwner(async (req, res) => {
+      const accessCodes = await listPlayerAccessCodes(req.app.locals.supabase, req.user);
+      res.json({ accessCodes });
+    }),
+  );
+
+  router.post(
+    '/access-codes',
+    requireOwner(async (req, res) => {
+      const input = parseBody(createAccessCodeSchema, req.body);
+      const result = await createPlayerAccessCode(req.app.locals.supabase, req.user, input);
+      res.status(201).json(result);
+    }),
+  );
+
+  router.patch(
+    '/access-codes/:id',
+    requireOwner(async (req, res) => {
+      const input = parseBody(updateAccessCodeSchema, req.body);
+      const accessCode = await updatePlayerAccessCode(
+        req.app.locals.supabase,
+        req.user,
+        req.params.id,
+        input,
+      );
+      res.json({ accessCode });
+    }),
+  );
+
+  router.delete(
+    '/access-codes/:id',
+    requireOwner(async (req, res) => {
+      await deletePlayerAccessCode(req.app.locals.supabase, req.user, req.params.id);
+      res.status(204).end();
     }),
   );
 

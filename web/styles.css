@@ -45,6 +45,16 @@ button.ghost {
   color: #f7f4ec;
 }
 
+button.tab {
+  background: #2d343a;
+  color: #f7f4ec;
+}
+
+button.tab.active {
+  background: #f7a600;
+  color: #1d1600;
+}
+
 button.danger {
   background: #b94435;
   color: #fff;
@@ -104,6 +114,13 @@ label {
   margin-top: 24px;
 }
 
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+}
+
 .notice,
 .error,
 .empty {
@@ -146,6 +163,11 @@ label {
   gap: 10px;
   color: #cfd5d8;
   word-break: break-word;
+}
+
+.user small {
+  color: #f7a600;
+  font-weight: 800;
 }
 
 .connections {
@@ -247,6 +269,36 @@ label {
   height: 18px;
 }
 
+.code-form {
+  margin-top: 16px;
+}
+
+.code-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.code-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(35, 41, 46, 0.92);
+}
+
+.code-row strong,
+.code-row small {
+  display: block;
+}
+
+.code-row small {
+  color: #b9c1c6;
+  font-weight: 600;
+}
+
 @media (max-width: 920px) {
   .app-shell {
     grid-template-columns: 1fr;
@@ -279,5 +331,9 @@ label {
 
   .actions {
     flex-direction: column;
+  }
+
+  .code-row {
+    display: grid;
   }
 }
